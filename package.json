@@ -1,0 +1,29 @@
+{
+  "name": "url-shortener-microservice",
+  "version": "1.0.0",
+  "main": "lib/index.js",
+  "repository": {},
+  "author": "Nicholas Mason <nmt.mason@googlemail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.14.1",
+    "pg": "^6.1.2"
+  },
+  "devDependencies": {
+    "eslint": "^3.15.0",
+    "eslint-config-semistandard": "^7.0.0",
+    "eslint-config-standard": "^6.2.1",
+    "eslint-plugin-promise": "^3.4.1",
+    "eslint-plugin-react": "^6.9.0",
+    "eslint-plugin-standard": "^2.0.1",
+    "nodemon": "^1.11.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "watch": "nodemon index.js",
+    "lint": "eslint index.js"
+  },
+  "eslintConfig": {
+    "extends": "semistandard"
+  }
+}
