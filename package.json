@@ -1,7 +1,7 @@
 {
   "name": "url-shortener-microservice",
   "version": "1.0.0",
-  "main": "lib/index.js",
+  "main": "src/index.js",
   "repository": {},
   "author": "Nicholas Mason <nmt.mason@googlemail.com>",
   "license": "MIT",
@@ -13,7 +13,7 @@
     "nodemon": "^1.11.0"
   },
   "scripts": {
-    "start": "node index.js",
-    "watch": "nodemon index.js"
+    "start": "node src/index.js",
+    "watch": "nodemon src/index.js"
   }
 }
