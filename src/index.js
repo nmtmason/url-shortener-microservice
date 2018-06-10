@@ -1,88 +1,79 @@
 require('dotenv').config();
 
-var express = require('express');
-var pg = require('pg');
+const express = require('express');
+const bodyParser = require('body-parser');
+const util = require('util');
+const url = require('url');
+const dns = require('dns');
+const lookup = util.promisify(dns.lookup);
 
-var db = {
-  client: undefined,
-  connect: function(str) {
-    if (!this.client) {
-      this.client = new pg.Client(str);
-    }
-    function promisify(resolve, reject) {
-      this.client.connect(function(error) {
-        if (error) {
-          reject(error);
-        }
-        resolve();
-      });
-    }
-    return new Promise(promisify.bind(this));
-  },
-  query: function(str, params = []) {
-    function promisify(resolve, reject) {
-      this.client.query(str, params, function(error, result) {
-        if (error) {
-          reject(error);
-        }
-        resolve(result);
-      });
-    }
-    return new Promise(promisify.bind(this));
-  }
+const { Client } = require('./client');
+const client = new Client(process.env.DATABASE_URL);
+
+const asyncMiddleware = fn => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(error => {
+    next(error);
+  });
 };
+
+//eslint-disable-next-line no-unused-vars
+const errorHandler = (error, req, res, next) => {
+  res
+    .status(500)
+    .send({ error: error.message })
+    .end();
+};
+
+class URLParseError extends Error {}
+class DNSLookupError extends Error {}
+class URLMissingError extends Error {}
 
 var app = express();
 
-app.get('/favicon.ico', function(request, response) {
-  response.sendStatus(204);
-});
+app.use(bodyParser.urlencoded({ extended: false }));
 
-app.get('/new/:url*', function(request, response, next) {
-  var url = request.url.slice(5);
-  db.query('SELECT id FROM urls WHERE url = $1', [url])
-    .then(function(result) {
-      if (result.rows.length === 0) {
-        return db.query('INSERT INTO urls (url) VALUES ($1) RETURNING ID', [
-          url
-        ]);
-      }
-      return result;
-    })
-    .catch(function(error) {
-      next(error);
-    })
-    .then(function(result) {
-      var id = result.rows[0].id;
-      var target = request.protocol + '://' + request.get('host') + '/' + id;
-      response.send({ source: url, target: target });
-    })
-    .catch(function(error) {
-      next(error);
-    });
-});
+app.post(
+  '/api/shorturl/new',
+  asyncMiddleware(async (req, res) => {
+    let parsed = url.parse(req.body.url);
+    if (!parsed.host) {
+      throw new URLParseError('invalid URL');
+    }
 
-app.get('/:id', function(request, response, next) {
-  db.query('SELECT url FROM urls WHERE id = $1', [request.params.id])
-    .then(function(result) {
-      var url = result.rows[0].url;
-      response.redirect(url);
-    })
-    .catch(function(error) {
-      next(error);
-    });
-});
+    try {
+      await lookup(parsed.host);
+    } catch (error) {
+      throw new DNSLookupError('invalid URL');
+    }
 
-db.connect(process.env.DATABASE_URL)
-  .then(function() {
-    db.query('SELECT * FROM urls LIMIT 1').catch(function() {
-      db.query(
-        'CREATE TABLE urls (id BIGSERIAL PRIMARY KEY, url VARCHAR(255))'
+    let result = await client.first('SELECT id, url FROM urls WHERE url = $1', [
+      req.body.url
+    ]);
+    if (!result) {
+      result = await client.first(
+        'INSERT INTO urls (url) VALUES ($1) RETURNING id, url',
+        [req.body.url]
       );
-    });
+    }
+    res.send({ original_url: result.url, short_url: result.id }).end();
   })
-  .catch(function(error) {
-    throw new Error(error);
-  });
+);
 
-app.listen(process.env.PORT);
+app.get(
+  '/api/shorturl/:id',
+  asyncMiddleware(async (req, res) => {
+    let result = await client.first('SELECT id, url FROM urls WHERE id = $1', [
+      req.params.id
+    ]);
+    if (!result) {
+      throw new URLMissingError('invalid URL');
+    }
+    res.redirect(result.url);
+  })
+);
+
+app.use(errorHandler);
+
+app.listen(process.env.PORT, () => {
+  client.connect();
+});

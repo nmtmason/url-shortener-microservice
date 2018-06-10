@@ -1,0 +1,8 @@
+POST http://127.0.0.1:4000/api/shorturl/new HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+url=https%3A%2F%2Fwww.google.com
+
+###
+
+GET http://127.0.0.1:4000/api/shorturl/1 HTTP/1.1
